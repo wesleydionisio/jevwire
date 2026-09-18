@@ -119,7 +119,7 @@ export function toQuestion(input: QuestionInput): Question {
  * means zod 4 inlines the whole union, so the JSON Schema the MCP client sees
  * carries no `$ref` — and a `$ref` is what some clients silently drop.
  */
-const entrySchema = z
+export const entrySchema = z
   .union([z.string(), z.array(z.unknown()), z.record(z.string(), z.unknown()), z.null()])
   .describe(
     "A rubric entry: a string, or JSON structure such as {what, not_for, examples} / {summary, signals}.",

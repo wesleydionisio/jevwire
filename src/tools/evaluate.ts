@@ -10,6 +10,7 @@ import { z } from "zod";
 import { gate, gateNoul, resolveThresholds } from "../decision/policy.js";
 import type { Answer, DecisionModel, EvaluateRequest, Gate, Question } from "../decision/types.js";
 import {
+  entrySchema,
   envelopeShape,
   gateSchema,
   questionSchema,
@@ -65,7 +66,7 @@ const gatedAnswerSchema = z.discriminatedUnion("type", [
   z.looseObject({
     type: z.literal("score"),
     score: z.number(),
-    legend: z.record(z.string(), z.string()).optional(),
+    legend: z.record(z.string(), entrySchema).optional(),
     probabilities: z.record(z.string(), z.number()).optional(),
     confidence: z.number(),
     gate: gateSchema,

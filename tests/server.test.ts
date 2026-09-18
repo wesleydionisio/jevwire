@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadConfig, MISSING_API_KEY_MESSAGE, type Config } from "../src/config.js";
 import { JevValidationError } from "../src/jev/errors.js";
 import { createServer } from "../src/server.js";
-import type { DecisionModel } from "../src/decision/types.js";
+import type { Answer, DecisionModel } from "../src/decision/types.js";
 import { choice, FakeModel, noul, score } from "./helpers/fake-model.js";
 
 const TOOL_NAMES = [
@@ -179,6 +179,32 @@ describe("createServer", () => {
     });
 
     expect((result.structuredContent as { decision: string }).decision).toBe("block");
+  });
+
+  it("passes output validation when the legend echoes structured criteria", async () => {
+    // The live API echoes each score level's criteria entry into `legend`, and
+    // the blast-radius rubric is `{summary, signals}` objects, not strings.
+    const gateModel = new FakeModel((call) => {
+      const blast = call.questions.blast_radius as { criteria: unknown[] };
+      const legend = Object.fromEntries(blast.criteria.map((entry, index) => [String(index), entry]));
+      return {
+        destructive: noul(0.98),
+        outward_facing: noul(0.02),
+        in_scope: noul(0.03),
+        credential_exposure: noul(0.01),
+        blast_radius: { type: "score", score: 2.1, legend, confidence: 0.8 } as Answer,
+      };
+    });
+    const client = await connect(gateModel, baseConfig);
+
+    const result = await client.callTool({
+      name: "jev_gate_action",
+      arguments: { action: "Bash(git reset --hard origin/main)", user_request: "list the files in src" },
+    });
+
+    expect(result.isError).toBeFalsy();
+    const legend = (result.structuredContent as { blast_radius: { legend: Record<string, unknown> } }).blast_radius.legend;
+    expect(legend["0"]).toEqual(expect.objectContaining({ summary: expect.any(String) }));
   });
 
   it("returns isError with an actionable message when no API key is configured", async () => {

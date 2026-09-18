@@ -38498,7 +38498,7 @@ var gatedAnswerSchema = external_exports.discriminatedUnion("type", [
   external_exports.looseObject({
     type: external_exports.literal("score"),
     score: external_exports.number(),
-    legend: external_exports.record(external_exports.string(), external_exports.string()).optional(),
+    legend: external_exports.record(external_exports.string(), entrySchema).optional(),
     probabilities: external_exports.record(external_exports.string(), external_exports.number()).optional(),
     confidence: external_exports.number(),
     gate: gateSchema
@@ -39065,7 +39065,7 @@ var outputShape2 = {
   }).describe("How each signal was read: yes / no / uncertain, using the auto threshold."),
   blast_radius: external_exports.object({
     score: external_exports.number().describe("Probability-weighted level, 0..3. Can fall between levels."),
-    legend: external_exports.record(external_exports.string(), external_exports.string()).optional(),
+    legend: external_exports.record(external_exports.string(), entrySchema).optional(),
     confidence: external_exports.number(),
     level: external_exports.number().describe("The level the answer picked."),
     p_level: external_exports.number().describe("Probability of that level."),

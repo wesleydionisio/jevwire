@@ -17,6 +17,7 @@
 import { lean, levelMass, resolveThresholds, topLevel, type Lean, type TopLevel } from "../decision/policy.js";
 import type {
   DecisionModel,
+  EntryType,
   EvaluateRequest,
   GateThresholds,
   Json,
@@ -707,7 +708,7 @@ export interface GateActionCoreInput {
 export interface BlastRadiusResult {
   /** Probability-weighted level, 0..3. */
   score: number;
-  legend?: Record<string, string>;
+  legend?: Record<string, EntryType>;
   confidence: number;
   /** The level the answer picked. */
   level: number;

@@ -63,7 +63,8 @@ export interface ScoreAnswer {
   type: "score";
   /** Probability-weighted level index; may fall between levels. */
   score: number;
-  legend: Record<string, string>;
+  /** level index -> the criteria entry it was asked with (prose or structure). */
+  legend: Record<string, EntryType>;
   /** Absent from some provider responses. */
   probabilities?: Record<string, number>;
   confidence: number;

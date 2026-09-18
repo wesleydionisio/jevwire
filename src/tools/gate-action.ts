@@ -25,7 +25,7 @@ import {
   type GateActionPolicyOptions,
   type GateActionRunConfig,
 } from "./gate-action-core.js";
-import { envelopeShape, thresholdsSchema } from "./shared.js";
+import { entrySchema, envelopeShape, thresholdsSchema } from "./shared.js";
 
 export {
   DECISIONS,
@@ -137,7 +137,7 @@ export const outputShape = {
   blast_radius: z
     .object({
       score: z.number().describe("Probability-weighted level, 0..3. Can fall between levels."),
-      legend: z.record(z.string(), z.string()).optional(),
+      legend: z.record(z.string(), entrySchema).optional(),
       confidence: z.number(),
       level: z.number().describe("The level the answer picked."),
       p_level: z.number().describe("Probability of that level."),
