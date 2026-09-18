@@ -39,13 +39,68 @@ Node >= 20 for all three routes.
 /plugin install jev@brainwires-jevwire
 ```
 
-Then give it a key, by either route:
+Then give it a key for one provider (see [Providers](#providers-typesafe-or-openrouter)), by either route:
 
-- `/plugin` → jev → **TypeSafe API key**, or
-- `export TYPESAFE_API_KEY=sk-...` in the shell you start Claude Code from.
+- `/plugin` → jev → **TypeSafe API key** (or **OpenRouter API key**), or
+- `export TYPESAFE_API_KEY=sk-...` (or `export OPENROUTER_API_KEY=sk-or-...`) in the shell you start
+  Claude Code from.
 
 Then `/reload-plugins`. Without a key the judgment hooks stay inactive — the deterministic pattern
 checks still run — and the plugin says so once per session.
+
+### Providers: TypeSafe or OpenRouter
+
+Jev can be reached two ways. Both take the same request and return the same answers; only the URL,
+the model name and the key differ, so every tool, hook, threshold and `/jev:*` command behaves the
+same on either.
+
+| | TypeSafe (default) | OpenRouter |
+|---|---|---|
+| Endpoint | `https://api.typesafe.ai/v1/systemone` | `https://openrouter.ai/api/alpha/decisions` (Decisions API, alpha) |
+| Key | `TYPESAFE_API_KEY` | `OPENROUTER_API_KEY` (`sk-or-...`) |
+| Model | `jev-1.13.0` (pinned default) | `typesafe/jev-1.13` |
+
+TypeSafe, exactly as before:
+
+```bash
+export JEV_PROVIDER=typesafe          # optional: it is what you get anyway
+export TYPESAFE_API_KEY="..."
+```
+
+OpenRouter:
+
+```bash
+export JEV_PROVIDER=openrouter
+export OPENROUTER_API_KEY="sk-or-..."
+export JEV_MODEL="typesafe/jev-1.13"  # optional: this is already the default on OpenRouter
+claude
+```
+
+**How the provider is chosen** (`JEV_PROVIDER=auto|typesafe|openrouter`, or `/plugin` → jev →
+**Provider**):
+
+1. If a provider is named (`typesafe` or `openrouter`), that one is used.
+2. Otherwise, if `TYPESAFE_API_KEY` is set, TypeSafe. An existing install therefore never changes.
+3. Otherwise, if `OPENROUTER_API_KEY` is set, OpenRouter.
+4. Otherwise no provider: the judgment hooks stay inactive and the server explains what to set.
+
+There is **no silent fallback**. `JEV_PROVIDER=openrouter` with no OpenRouter key means "no provider"
+— jev does not quietly use your TypeSafe key instead — and `/jev:status` and the SessionStart note say
+which variable is missing. The plugin's **Provider** option, when set to something other than `auto`,
+wins over `JEV_PROVIDER`.
+
+**Model names.** `JEV_MODEL` is resolved in one place (`resolveModel` in `src/jev/provider.ts`). On
+TypeSafe it is sent as written. On OpenRouter `jev-latest` maps to the current release
+(`typesafe/jev-1.13`), a bare `jev-1.12` becomes `typesafe/jev-1.12`, the plugin's default
+`jev-1.13.0` becomes `typesafe/jev-1.13`, and a full `vendor/name` slug is used as given. OpenRouter
+answers with a dated id (for example `typesafe/jev-1.13-20260917`); that is what the tool results and
+the decision log record, next to `provider: "openrouter"`.
+
+Differences worth knowing on OpenRouter: the Decisions API is alpha and adds a network hop;
+`jev_list_models` returns the single model jev targets, because OpenRouter publishes no catalog for
+it; and `TYPESAFE_BASE_URL` does not apply (`OPENROUTER_BASE_URL` overrides the endpoint root, for a
+proxy or a mock). Hooks make one request with the same 1.5 s deadline and fail open on any error, on
+either provider; the MCP tools keep their retries.
 
 There is no build or install step: `plugin/dist/hook.mjs` and `plugin/dist/mcp.mjs` are committed,
 dependency-free, esbuild-bundled single files.
@@ -69,6 +124,9 @@ Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json
   }
 }
 ```
+
+Through OpenRouter instead, swap the key and name the provider:
+`claude mcp add jev -e JEV_PROVIDER=openrouter -e OPENROUTER_API_KEY=sk-or-... -- npx -y jevwire`.
 
 Codex (`~/.codex/config.toml`):
 
@@ -95,6 +153,10 @@ const check = await runGateAction(jev, { action: toolCallDescription, user_reque
 if (check.decision === "block") throw new Error(check.reasons.join(" "));
 if (check.decision === "confirm") await askTheHuman(check);
 ```
+
+For OpenRouter pass `provider: "openrouter"` (the default model is then `typesafe/jev-1.13`), or let
+`createJevModel(loadConfig())` pick from the environment as the server does. `resolveProvider` and
+`resolveModel` are exported for hand-rolled setups.
 
 Every `run*` takes a `DecisionModel` (the interface in `src/decision/types.ts`) rather than the
 concrete client, so tests can pass a fake or you can swap in another structured-output adapter.
@@ -295,7 +357,9 @@ environment fallback for hand-wired use.
 
 | Setting | Type | Default | Meaning | Env fallback |
 |---|---|---|---|---|
-| `api_key` | string (sensitive) | — | TypeSafe API key. Without it the judgment hooks stay inactive | `TYPESAFE_API_KEY` |
+| `provider` | `auto` \| `typesafe` \| `openrouter` | *(empty = `auto`)* | Who answers judgments. `auto` picks TypeSafe if a TypeSafe key exists, else OpenRouter. An explicit choice never falls back to the other. Left empty, `JEV_PROVIDER` decides | `JEV_PROVIDER` |
+| `api_key` | string (sensitive) | — | TypeSafe API key. Without a key for the selected provider the judgment hooks stay inactive | `TYPESAFE_API_KEY` |
+| `openrouter_api_key` | string (sensitive) | — | OpenRouter API key (`sk-or-...`), used when the provider is `openrouter`, or under `auto` when no TypeSafe key is set | `OPENROUTER_API_KEY` |
 | `gate` | `off` \| `advisory` \| `strict` | `advisory` | `advisory` judges writes outside the project, sensitive paths, unrecognized shell commands and MCP tools with unknown effects, notes what it finds, and trips the two block-grade cases; `strict` also judges ordinary in-project edits and notes the cases advisory mode keeps to itself. Replaces `gate_mode` (see below) | `JEV_GATE` |
 | `ask_on_trip` | boolean | `false` | Turn a tripwire's `deny` into a permission prompt, so you decide instead of Claude. The only setting in the plugin that can prompt you. No effect in `dontAsk`/`bypassPermissions` | `JEV_ASK_ON_TRIP` |
 | `stop_check` | boolean | `true` | The `Stop` check on the final message | `JEV_STOP_CHECK` |
@@ -303,7 +367,7 @@ environment fallback for hand-wired use.
 | `route_prompts` | boolean | `false` | One advisory line naming the kind of task a prompt asks for. Off by default: it costs a call on every prompt | `JEV_ROUTE_PROMPTS` |
 | `auto_threshold` | number, 0.5–0.99 | `0.85` | Probability at or above which a signal counts as established. Applies to a Noul's `P(yes)` and to a Score level set's mass, which are the same kind of quantity. Lower means more notes | `JEV_AUTO_THRESHOLD` |
 | `confidence_threshold` | number, 0.5–0.99 | `0.85` | The bar a Choice answer's `confidence` has to clear. A separate setting because `confidence` is a peakedness statistic over the options, not the probability of a binary event. Only `route_prompts` uses it | `JEV_CONFIDENCE_THRESHOLD` |
-| `model` | string | `jev-1.13.0` | The versioned model id the hooks and the MCP server send. Pinned; set `jev-latest` to follow releases, and read *Alias-move risk* below first | `JEV_MODEL` |
+| `model` | string | `jev-1.13.0` (`typesafe/jev-1.13` on OpenRouter) | The versioned model id the hooks and the MCP server send. Pinned; set `jev-latest` to follow releases, and read *Alias-move risk* below first. Mapped to an OpenRouter slug when that provider is used | `JEV_MODEL` |
 | `daemon_port` | number, 0–65535 | `10522` | Loopback port for the daemon. Moving it also means editing the URLs in the plugin's `hooks/hooks.json`, because a hook URL cannot read an environment variable | `JEV_DAEMON_PORT` |
 | `daemon_idle_ms` | number, 1 s–24 h | `1800000` | How long the daemon stays resident with no hook to serve | `JEV_DAEMON_IDLE_MS` |
 
@@ -361,15 +425,24 @@ Both work, and the plugin setting wins when both are present.
 The server resolves the first non-empty of `JEV_PLUGIN_API_KEY`, `CLAUDE_PLUGIN_OPTION_API_KEY`,
 `TYPESAFE_API_KEY`. After changing either, run `/reload-plugins`.
 
+The OpenRouter key follows the same two routes with the same precedence: the plugin's
+**OpenRouter API key** (`JEV_PLUGIN_OPENROUTER_API_KEY` to the server,
+`CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY` to the hooks), then `OPENROUTER_API_KEY`. The hooks'
+loopback daemon accepts a request carrying any key of either provider that it holds; the keys are
+never logged and `/jev:status` only says "configured".
+
 ### Server environment variables
 
 For the bare MCP server and the library:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TYPESAFE_API_KEY` | *(required)* | Bearer token. Missing: the server starts, every tool returns a clear error |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` | API base. Point at a proxy or a mock |
-| `JEV_MODEL` | `jev-1.13.0` | Model or alias the server sends. Pinned; `jev-latest` follows releases and moves your calibration with them |
+| `JEV_PROVIDER` | `auto` | `auto`, `typesafe` or `openrouter`. See [Providers](#providers-typesafe-or-openrouter) |
+| `TYPESAFE_API_KEY` | *(one key required)* | TypeSafe bearer token. With no key for the selected provider the server starts and every tool returns a clear error |
+| `OPENROUTER_API_KEY` | *(one key required)* | OpenRouter key (`sk-or-...`). Used with `JEV_PROVIDER=openrouter`, or under `auto` when there is no TypeSafe key |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` | TypeSafe API base. Point at a proxy or a mock |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/alpha` | OpenRouter API root (the request goes to `<root>/decisions`) |
+| `JEV_MODEL` | `jev-1.13.0` / `typesafe/jev-1.13` | Model or alias the server sends. Pinned; `jev-latest` follows releases and moves your calibration with them. Mapped to an OpenRouter slug on that provider |
 | `JEV_TIMEOUT_MS` | `30000` | Deadline for one logical call, retries included |
 | `JEV_MAX_RETRIES` | `3` | Retries after the first attempt, on 429 / 529 / 5xx / network errors |
 | `JEV_AUTO_THRESHOLD` | `0.85` | At or above this certainty, `gate` is `auto` |
@@ -807,7 +880,9 @@ npm install
 npm test           # vitest, watch
 npm run type-check
 npm run build      # tsc, then the two esbuild plugin bundles
-npm run smoke      # live, one tiny request; skips when TYPESAFE_API_KEY is unset
+npm run smoke      # live, one tiny request; skips when no provider key is set
+# JEV_PROVIDER=openrouter OPENROUTER_API_KEY=sk-or-... npm run smoke   # the same run through OpenRouter,
+#   asserting provider=openrouter, a typesafe/ model, probabilities and usage
 npm run bump -- 0.3.0   # package.json, plugin.json, marketplace.json, lockfile, SERVER_VERSION
 ```
 
@@ -817,7 +892,7 @@ bundle is stale. Nothing in the test suite touches the network: tests inject a f
 fake `DecisionModel`.
 
 `src/decision/types.ts` is the provider-agnostic contract. `src/decision/` holds pure logic,
-`src/jev/` the HTTP client, `src/files/` the MCP-only file access layer, `src/tools/` one file per
+`src/jev/` the HTTP client and provider/model resolution (`provider.ts`), `src/files/` the MCP-only file access layer, `src/tools/` one file per
 tool with a pure `run`, `src/server.ts` the MCP wiring, and `src/hooks/` the plugin.
 
 - [CHANGELOG.md](CHANGELOG.md)

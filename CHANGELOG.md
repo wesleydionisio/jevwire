@@ -7,6 +7,56 @@ documented in this file. The npm package is published as `jevwire` and the Claud
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] — 2026-09-18, OpenRouter provider
+
+Jev can now be reached through OpenRouter's Decisions API as well as TypeSafe directly. A user who
+has only `TYPESAFE_API_KEY` set sees no change.
+
+### Added
+
+- **`JEV_PROVIDER=auto|typesafe|openrouter`** and **`OPENROUTER_API_KEY`**. `auto` (the default)
+  uses TypeSafe when `TYPESAFE_API_KEY` is set, else OpenRouter when `OPENROUTER_API_KEY` is set,
+  else nothing (hooks inactive, the server explains). An explicit provider without its key is
+  "no provider", never a silent switch to the other one.
+- **Provider as transport, not a second client.** `JevDecisionModel` takes `provider`
+  (`typesafe` default, `openrouter`); the OpenRouter request is `POST
+  https://openrouter.ai/api/alpha/decisions` with the same `{model, state, questions}` body and the
+  same answers, a `Bearer` key and OpenRouter's attribution headers. Tools, hooks, thresholds and
+  `/jev:*` commands are untouched and provider-agnostic. `createJevModel(config)` is now the one
+  place a client is built (MCP server, hook CLI, daemon, smoke).
+- **Central provider/model resolution** in `src/jev/provider.ts` (`resolveProvider`,
+  `resolveModel`, exported from the library). On OpenRouter `jev-latest` → `typesafe/jev-1.13`, a
+  bare `jev-X.Y[.Z]` → `typesafe/jev-X.Y`, and a `vendor/name` slug is used as given.
+- **Plugin options** `provider` (auto / typesafe / openrouter) and `openrouter_api_key`
+  (sensitive). Existing `api_key` and `model` options are unchanged; `provider` has no default so
+  it cannot shadow an exported `JEV_PROVIDER`.
+- **Reporting.** `/jev:status` prints `provider:` (and says why there is none), tool results carry
+  an optional `provider`, and decision-log records gain `provider` on judged calls. The API key is
+  still never printed or logged.
+- **`npm run smoke` through OpenRouter**, asserting provider, a `typesafe/` model, probabilities
+  and usage. Still skips without credentials; CI does not run it.
+
+### Changed
+
+- The hook daemon's loopback auth also accepts the OpenRouter key, through two new headers in
+  `hooks/hooks.json` (`X-Jev-Option-Key-OpenRouter`, `X-Jev-Env-Key-OpenRouter`) whose variables
+  are added to each entry's `allowedEnvVars`. The daemon holds and accepts keys of both providers.
+- `Config` and `HookConfig` gain `provider`, `providerSetting` and `providerProblem`; `apiKey` is
+  the selected provider's key. `hookConfigFrom` takes an optional fourth argument for the provider.
+- `SessionStart`'s inactive note names OpenRouter when that provider was chosen.
+
+### Unchanged on purpose
+
+Hooks still make one request with the 1.5 s deadline and fail open on any error — 429, 5xx,
+timeout, network, malformed body — on either provider. MCP tools keep their retries. Nothing emits
+`allow`, no threshold moved, and the hook bundle still contains no MCP SDK or zod.
+
+### Notes
+
+- OpenRouter's Decisions API is alpha and answers with a dated model id
+  (e.g. `typesafe/jev-1.13-20260917`); that id is what gets recorded.
+- `jev_list_models` on OpenRouter returns the single model jev targets: there is no catalog to list.
+
 ## [0.5.1] — 2026-09-18
 
 ### Fixed

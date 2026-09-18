@@ -24,7 +24,7 @@
  * not a broken one.
  */
 
-import { JevDecisionModel } from "../jev/client.js";
+import { createJevModel } from "../jev/client.js";
 import type { DecisionModel } from "../decision/types.js";
 import { loadHookConfig, type HookConfig } from "./config.js";
 import { expectedKeysFrom, keyFingerprint } from "./daemon/auth.js";
@@ -53,18 +53,7 @@ export const SESSION_START_DAEMON_MS = 3500;
 const SESSION_POST_MS = 700;
 
 export function buildDeps(config: HookConfig, model?: DecisionModel | null): Deps {
-  const resolved =
-    model !== undefined
-      ? model
-      : config.apiKey === null
-        ? null
-        : new JevDecisionModel({
-            apiKey: config.apiKey,
-            baseUrl: config.baseUrl,
-            model: config.model,
-            timeoutMs: config.timeoutMs,
-            maxRetries: config.maxRetries,
-          });
+  const resolved = model !== undefined ? model : createJevModel(config);
   return { model: resolved, config, store: new Store(config.dataDir), now: () => Date.now() };
 }
 

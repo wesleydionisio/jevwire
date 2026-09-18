@@ -2,15 +2,19 @@
 /**
  * Live smoke test: one tiny three-question request against the real API.
  *
- * Skips cleanly (exit 0) when TYPESAFE_API_KEY is unset, so it is safe to wire
+ * Skips cleanly (exit 0) when no provider key is set, so it is safe to wire
  * into a pipeline that does not always have credentials. Costs a few hundred
  * input tokens, which at $0.042/Mtok is effectively free.
  *
- *   npm run smoke
+ *   npm run smoke                                   # TYPESAFE_API_KEY
+ *   JEV_PROVIDER=openrouter OPENROUTER_API_KEY=sk-or-... npm run smoke
+ *
+ * With OpenRouter it also asserts the run really went through that provider:
+ * provider=openrouter, a `typesafe/...` model, probabilities and usage.
  */
 
 import { loadConfig } from "../src/config.js";
-import { JevDecisionModel } from "../src/jev/client.js";
+import { createJevModel } from "../src/jev/client.js";
 import { describeError } from "../src/jev/errors.js";
 import * as rankTool from "../src/tools/rank.js";
 import * as verifyTool from "../src/tools/verify.js";
@@ -18,26 +22,27 @@ import * as verifyTool from "../src/tools/verify.js";
 async function main(): Promise<number> {
   const config = loadConfig();
 
-  if (config.apiKey === null) {
-    console.log("skipped: TYPESAFE_API_KEY is not set, so the live smoke test did not run.");
+  const model = createJevModel(config);
+  if (model === null) {
+    console.log(
+      `skipped: ${config.providerProblem ?? "neither TYPESAFE_API_KEY nor OPENROUTER_API_KEY is set"}, so the live smoke test did not run.`,
+    );
     return 0;
   }
 
-  const model = new JevDecisionModel({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    timeoutMs: config.timeoutMs,
-    maxRetries: config.maxRetries,
-  });
+  const openrouter = model.provider === "openrouter";
+  const evaluatePath = openrouter ? "/decisions" : "/v1/systemone";
+  console.log(`provider=${model.provider}  model=${model.name}`);
 
-  console.log(`GET ${config.baseUrl}/v1/models`);
-  const catalog = await model.listModels();
-  for (const entry of catalog.models) {
-    console.log(`  ${entry.name}  (${entry.release_date})  ${entry.description}`);
+  if (!openrouter) {
+    console.log(`\nGET ${config.baseUrl}/v1/models`);
+    const catalog = await model.listModels();
+    for (const entry of catalog.models) {
+      console.log(`  ${entry.name}  (${entry.release_date})  ${entry.description}`);
+    }
   }
 
-  console.log(`\nPOST ${config.baseUrl}/v1/systemone  model=${config.model}`);
+  console.log(`\nPOST ${config.baseUrl}${evaluatePath}  model=${config.model}`);
   const result = await model.evaluate({
     state: "Help! My payouts have been failing for 3 days.",
     questions: {
@@ -63,7 +68,7 @@ async function main(): Promise<number> {
     },
   });
 
-  console.log(`  answered by: ${result.model}  in ${result.latency_ms}ms`);
+  console.log(`  answered by: ${result.model} via ${result.provider ?? "unknown"}  in ${result.latency_ms}ms`);
   console.log(`  usage: ${result.usage.input_tokens} in / ${result.usage.output_tokens} out`);
   console.log(`  is_urgent   noul=${result.answers.is_urgent.noul}`);
   console.log(
@@ -71,6 +76,22 @@ async function main(): Promise<number> {
   );
   console.log(
     `  frustration score=${result.answers.frustration.score} confidence=${result.answers.frustration.confidence}`,
+  );
+
+  // What "it really went through this provider" means, checked rather than eyeballed.
+  const problems: string[] = [];
+  const department = result.answers.department;
+  if (result.provider !== model.provider) problems.push(`provider is ${String(result.provider)}, expected ${model.provider}`);
+  if (openrouter && !result.model.startsWith("typesafe/")) problems.push(`model ${result.model} is not a typesafe/ slug`);
+  if (Object.keys(department.probabilities).length === 0) problems.push("no probabilities on the choice answer");
+  if (typeof result.answers.is_urgent.noul !== "number") problems.push("no noul probability");
+  if (!(result.usage.input_tokens > 0)) problems.push("usage.input_tokens was not received");
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`  check failed: ${problem}`);
+    return 1;
+  }
+  console.log(
+    `  checks: provider=${result.provider} model=${result.model} probabilities=${JSON.stringify(department.probabilities)} usage ok`,
   );
 
   // ---------------------------------------------------------------- jev_rank

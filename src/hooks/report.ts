@@ -16,6 +16,7 @@ import type { HookConfig } from "./config.js";
 import { isAlive, probeHealth, type Health, type Probe } from "./daemon/control.js";
 import { PROTOCOL } from "./daemon/protocol.js";
 import { daemonLogPath, readDaemonState, type DaemonState } from "./daemon/state-file.js";
+import { PROVIDER_LABELS } from "../jev/provider.js";
 import type { DecisionRecord, Store } from "./store.js";
 
 /** TypeSafe bills input tokens only. Defined in `src/decision/pricing.ts`. */
@@ -190,6 +191,12 @@ export function daemonReport(config: HookConfig, view: DaemonView, now: number =
   return lines;
 }
 
+/** "OpenRouter", or why there is no provider. Never anything key-shaped. */
+function providerLine(config: HookConfig): string {
+  if (config.provider !== null) return PROVIDER_LABELS[config.provider];
+  return `none (${config.providerProblem ?? "set TYPESAFE_API_KEY or OPENROUTER_API_KEY"})`;
+}
+
 export function statusReport(
   config: HookConfig,
   store: Store,
@@ -216,8 +223,9 @@ export function statusReport(
     "jev — Claude Code plugin status",
     "",
     "Configuration",
-    `  API key: ${config.apiKey === null ? "not configured (judgment hooks inactive)" : "configured"}`,
+    `  provider: ${providerLine(config)}`,
     `  model: ${config.model}`,
+    `  API key: ${config.apiKey === null ? "not configured (judgment hooks inactive)" : "configured"}`,
     `  base url: ${config.baseUrl}`,
     `  gate: ${config.gate}`,
     `  ask_on_trip: ${config.askOnTrip}${config.askOnTrip ? "" : " (a tripwire denies to Claude; the user is not prompted)"}`,

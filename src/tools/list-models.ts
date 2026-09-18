@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { isModelCatalog } from "../decision/models.js";
 import type { DecisionModel } from "../decision/types.js";
+import { providerField } from "../jev/provider.js";
 import { envelopeShape, type ToolConfig } from "./shared.js";
 
 export const name = "jev_list_models";
@@ -58,6 +59,7 @@ export async function run(
     // and no tokens were spent. The envelope stays uniform: the configured
     // default model, and zero usage.
     model: config.model,
+    ...providerField((model as { provider?: string }).provider),
     usage: { input_tokens: 0, output_tokens: 0 },
     latency_ms: Date.now() - started,
   };

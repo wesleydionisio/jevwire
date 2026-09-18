@@ -389,6 +389,7 @@ function combinedCost(results: readonly EvaluateResult[]): ReturnType<typeof mod
   const first = results[0] as EvaluateResult;
   return modelCost({
     model: first.model,
+    provider: first.provider,
     latency_ms: Math.max(...results.map((result) => result.latency_ms)),
     usage: { input_tokens: results.reduce((sum, result) => sum + result.usage.input_tokens, 0) },
     ...(results.every((result) => result.memo === true) ? { memo: true } : {}),

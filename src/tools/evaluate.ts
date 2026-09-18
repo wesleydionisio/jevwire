@@ -19,6 +19,7 @@ import {
   toState,
   type ToolConfig,
 } from "./shared.js";
+import { providerField } from "../jev/provider.js";
 
 export const name = "jev_evaluate";
 
@@ -120,6 +121,7 @@ export async function run(
     answers: answers as EvaluateToolOutput["answers"],
     thresholds,
     model: result.model,
+    ...providerField(result.provider),
     usage: result.usage,
     latency_ms: result.latency_ms,
   };

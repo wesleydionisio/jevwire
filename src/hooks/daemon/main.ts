@@ -15,7 +15,7 @@
  * process is how you end up with a 400 MB log file.
  */
 
-import { JevDecisionModel } from "../../jev/client.js";
+import { createJevModel } from "../../jev/client.js";
 import type { DecisionModel } from "../../decision/types.js";
 import { loadHookConfig, type Env, type HookConfig } from "../config.js";
 import { expectedKeysFrom } from "./auth.js";
@@ -62,14 +62,8 @@ export function buildDaemonModel(config: HookConfig): {
   model: DecisionModel | null;
   memo: MemoizedModel | undefined;
 } {
-  if (config.apiKey === null) return { model: null, memo: undefined };
-  const client = new JevDecisionModel({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    timeoutMs: config.timeoutMs,
-    maxRetries: config.maxRetries,
-  });
+  const client = createJevModel(config);
+  if (client === null) return { model: null, memo: undefined };
   const memo = new MemoizedModel(new LimitedModel(client));
   return { model: memo, memo };
 }
@@ -106,7 +100,7 @@ export function makeDepsFor(
     if (entry !== undefined) {
       return {
         model,
-        config: hookConfigFrom(entry.config, config.apiKey, entry.dataDir),
+        config: hookConfigFrom(entry.config, config.apiKey, entry.dataDir, config),
         store: storeFor(entry.dataDir),
         now: () => Date.now(),
       };
@@ -121,7 +115,7 @@ export function makeDepsFor(
       registry.start(sessionId, config.dataDir, persisted);
       return {
         model,
-        config: hookConfigFrom(persisted, config.apiKey, config.dataDir),
+        config: hookConfigFrom(persisted, config.apiKey, config.dataDir, config),
         store,
         now: () => Date.now(),
       };

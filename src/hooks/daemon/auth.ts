@@ -8,12 +8,17 @@
  * value both ends already have: `hooks.json` interpolates it into the request
  * headers and `loadHookConfig` reads it in the daemon.
  *
- * Two headers, either of which is accepted:
+ * Two headers, either of which is accepted (0.6.0 adds two more below):
  *
  *   Authorization: Bearer $CLAUDE_PLUGIN_OPTION_API_KEY
  *   X-Jev-Env-Key: $TYPESAFE_API_KEY
  *
- * Both are sent on every hook, and exactly one of them usually has a value: the
+ * plus two more for the OpenRouter provider, accepted the same way:
+ *
+ *   X-Jev-Option-Key-OpenRouter: $CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY
+ *   X-Jev-Env-Key-OpenRouter: $OPENROUTER_API_KEY
+ *
+ * All are sent on every hook, and usually only one of them has a value: the
  * spike showed `CLAUDE_PLUGIN_OPTION_API_KEY` interpolating to the empty string
  * when the plugin option is unset (leaving a bare `Bearer `), while a key
  * exported in the user's shell arrives in the second. An empty credential is
@@ -66,8 +71,10 @@ export function credentials(headers: Headers): string[] {
     if (token !== "") found.push(token);
   }
 
-  const envKey = header(headers, "x-jev-env-key")?.trim();
-  if (envKey !== undefined && envKey !== "") found.push(envKey);
+  for (const name of ["x-jev-env-key", "x-jev-option-key-openrouter", "x-jev-env-key-openrouter"]) {
+    const value = header(headers, name)?.trim();
+    if (value !== undefined && value !== "") found.push(value);
+  }
 
   return found;
 }
@@ -90,7 +97,14 @@ function sameSecret(a: string, b: string): boolean {
  */
 export function expectedKeysFrom(env: Record<string, string | undefined>): string[] {
   const keys: string[] = [];
-  for (const raw of [env.CLAUDE_PLUGIN_OPTION_API_KEY, env.JEV_PLUGIN_API_KEY, env.TYPESAFE_API_KEY]) {
+  for (const raw of [
+    env.CLAUDE_PLUGIN_OPTION_API_KEY,
+    env.JEV_PLUGIN_API_KEY,
+    env.TYPESAFE_API_KEY,
+    env.CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY,
+    env.JEV_PLUGIN_OPENROUTER_API_KEY,
+    env.OPENROUTER_API_KEY,
+  ]) {
     const value = (raw ?? "").trim();
     if (value !== "" && !keys.includes(value)) keys.push(value);
   }

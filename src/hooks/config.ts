@@ -14,6 +14,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { defaultBaseUrl, resolveModel, resolveProvider, type ProviderName, type ProviderSetting } from "../jev/provider.js";
 import { DEFAULT_IDLE_MS, DEFAULT_PORT } from "./daemon/protocol.js";
 
 /**
@@ -36,8 +37,19 @@ const GATE_MODE_MIGRATION: Record<string, GateLevel> = {
 };
 
 export interface HookConfig {
+  /** The selected provider's key; `null` leaves the judgment hooks inactive. */
   apiKey: string | null;
+  /**
+   * The provider that will be called. `null` when none is usable: no key under
+   * `auto`, or an explicit provider without its key. Never a silent fallback.
+   */
+  provider: ProviderName | null;
+  /** What `JEV_PROVIDER` / the plugin option asked for. */
+  providerSetting: ProviderSetting;
+  /** Why no provider is active, for `/jev:status` and the SessionStart note. */
+  providerProblem: string | null;
   baseUrl: string;
+  /** Wire model name (OpenRouter: `typesafe/jev-1.13`). */
   model: string;
   /** Deadline for one Jev call inside a hook. Deliberately short. */
   timeoutMs: number;
@@ -210,7 +222,16 @@ export function loadHookConfig(env: Env = process.env): HookConfig {
     warnings.push("auto_mode is no longer used: every judgment is advisory to Claude and never prompts.");
   }
 
-  const apiKey = read(env, "api_key", "TYPESAFE_API_KEY") ?? null;
+  // The plugin's provider option defaults to nothing, but a hand-set "auto"
+  // must not shadow a JEV_PROVIDER the user exported.
+  const pluginProvider = read(env, "provider");
+  const providerRaw = pluginProvider !== undefined && pluginProvider.toLowerCase() !== "auto" ? pluginProvider : read(env, "provider", "JEV_PROVIDER");
+  const resolved = resolveProvider({
+    setting: providerRaw,
+    typesafeKey: read(env, "api_key", "TYPESAFE_API_KEY"),
+    openrouterKey: read(env, "openrouter_api_key", "OPENROUTER_API_KEY"),
+  });
+  if (resolved.problem !== null && resolved.provider !== null) warnings.push(resolved.problem);
   const auto = readNumber(env, "auto_threshold", HOOK_DEFAULTS.autoThreshold, 0, 1, warnings, "JEV_AUTO_THRESHOLD");
   const review = readNumber(
     env,
@@ -222,10 +243,18 @@ export function loadHookConfig(env: Env = process.env): HookConfig {
     "JEV_REVIEW_THRESHOLD",
   );
 
+  const baseUrl =
+    resolved.target === "openrouter"
+      ? (read(env, "openrouter_base_url", "OPENROUTER_BASE_URL") ?? defaultBaseUrl("openrouter"))
+      : (read(env, "base_url", "TYPESAFE_BASE_URL") ?? HOOK_DEFAULTS.baseUrl);
+
   return {
-    apiKey,
-    baseUrl: (read(env, "base_url", "TYPESAFE_BASE_URL") ?? HOOK_DEFAULTS.baseUrl).replace(/\/+$/, ""),
-    model: read(env, "model", "JEV_MODEL") ?? HOOK_DEFAULTS.model,
+    apiKey: resolved.apiKey,
+    provider: resolved.provider,
+    providerSetting: resolved.setting,
+    providerProblem: resolved.problem,
+    baseUrl: baseUrl.replace(/\/+$/, ""),
+    model: resolveModel(resolved.target, read(env, "model", "JEV_MODEL") ?? HOOK_DEFAULTS.model),
     timeoutMs: readNumber(env, "timeout_ms", HOOK_DEFAULTS.timeoutMs, 100, 10_000, warnings, "JEV_HOOK_TIMEOUT_MS"),
     maxRetries: HOOK_DEFAULTS.maxRetries,
     gate,

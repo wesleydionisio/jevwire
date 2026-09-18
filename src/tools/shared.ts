@@ -42,6 +42,7 @@ export const usageSchema = z.object({
 /** Fields every tool result carries, as a raw shape to spread into outputs. */
 export const envelopeShape = {
   model: z.string().describe("The versioned model id that actually answered."),
+  provider: z.string().optional().describe("Which service answered: `typesafe` or `openrouter`."),
   usage: usageSchema.describe("Token usage. Jev charges for input tokens only."),
   latency_ms: z.number().describe("Wall-clock time for the underlying API call(s), including retries."),
 } as const;

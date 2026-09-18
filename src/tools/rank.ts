@@ -27,6 +27,7 @@ import {
   type FileAccessOptions,
   type SkippedCounts,
 } from "../files/index.js";
+import { providerField } from "../jev/provider.js";
 import { envelopeShape, mapWithConcurrency, sumUsage, type ToolConfig } from "./shared.js";
 
 export const name = "jev_rank";
@@ -456,6 +457,7 @@ export async function run(
     chunks: chunks.length,
     total_candidates: rows.length,
     model: results[0]?.result.model ?? model.name,
+    ...providerField(results[0]?.result.provider),
     usage: sumUsage(results.map(({ result }) => result.usage)),
     latency_ms: Date.now() - started,
   };

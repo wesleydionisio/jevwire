@@ -19,6 +19,7 @@ import type {
   NoulAnswer,
   Question,
 } from "../decision/types.js";
+import { providerField } from "../jev/provider.js";
 import { envelopeShape, thresholdsSchema, type ToolConfig } from "./shared.js";
 
 export const name = "jev_next_step";
@@ -268,6 +269,7 @@ export async function run(
     confidence: choice.confidence,
     thresholds,
     model: result.model,
+    ...providerField(result.provider),
     usage: result.usage,
     latency_ms: result.latency_ms,
   };

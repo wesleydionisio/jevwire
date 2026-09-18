@@ -61,7 +61,27 @@ export {
 export { validateQuestions, ValidationError } from "./decision/validate.js";
 
 // The Jev implementation.
-export { computeBackoffMs, JevDecisionModel, parseRetryAfter, type JevDecisionModelOptions } from "./jev/client.js";
+export {
+  computeBackoffMs,
+  createJevModel,
+  JevDecisionModel,
+  parseRetryAfter,
+  type JevDecisionModelOptions,
+  type ModelSource,
+} from "./jev/client.js";
+export {
+  defaultBaseUrl,
+  defaultModel,
+  OPENROUTER_BASE_URL,
+  OPENROUTER_LATEST_MODEL,
+  PROVIDERS,
+  resolveModel,
+  resolveProvider,
+  type ProviderInputs,
+  type ProviderName,
+  type ProviderResolution,
+  type ProviderSetting,
+} from "./jev/provider.js";
 export {
   describeError,
   JevAuthError,
@@ -76,7 +96,7 @@ export {
 } from "./jev/errors.js";
 
 // Config and MCP assembly, for harnesses that want to expose the same tools.
-export { DEFAULTS, loadConfig, MISSING_API_KEY_MESSAGE, type Config, type Env } from "./config.js";
+export { DEFAULTS, loadConfig, MISSING_API_KEY_MESSAGE, missingKeyMessage, type Config, type Env } from "./config.js";
 export { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
 
 // Shared tool plumbing.

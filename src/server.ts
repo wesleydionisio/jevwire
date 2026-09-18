@@ -9,7 +9,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { MISSING_API_KEY_MESSAGE, type Config } from "./config.js";
+import { missingKeyMessage, type Config } from "./config.js";
 import type { DecisionModel } from "./decision/types.js";
 import { describeError } from "./jev/errors.js";
 import * as evaluateTool from "./tools/evaluate.js";
@@ -21,7 +21,7 @@ import * as verifyTool from "./tools/verify.js";
 import type { ToolConfig } from "./tools/shared.js";
 
 export const SERVER_NAME = "jevwire";
-export const SERVER_VERSION = "0.5.1";
+export const SERVER_VERSION = "0.6.0";
 
 /** Read-only, but every tool reaches an external API. */
 const ANNOTATIONS = { readOnlyHint: true, openWorldHint: true } as const;
@@ -69,7 +69,7 @@ export function createServer(model: DecisionModel | null, config: Config): McpSe
     run: (model: DecisionModel, input: I, config: ToolConfig, signal?: AbortSignal) => Promise<O>,
   ): (input: I, extra: { signal?: AbortSignal }) => Promise<CallToolResult> {
     return async (input, extra) => {
-      if (model === null) return fail(MISSING_API_KEY_MESSAGE);
+      if (model === null) return fail(missingKeyMessage(config));
       try {
         return ok(await run(model, input, toolConfig, extra.signal));
       } catch (error) {

@@ -18,14 +18,20 @@ export async function handleSessionStart(input: HookInput, deps: Deps): Promise<
   if (session.key_warned === true) return undefined;
   store.writeSession(sessionId, { ...session, key_warned: true }, deps.now());
 
+  // An explicit provider without its key is named as such; jev never falls back
+  // to the other provider on its own.
+  const explicit = config.providerSetting !== "auto" ? config.providerSetting : undefined;
+  const label = explicit === "openrouter" ? "OpenRouter" : "TypeSafe";
   const message =
-    "jev hooks are inactive: no TypeSafe API key is configured. Set it with `/plugin` (jev → api_key) or by exporting TYPESAFE_API_KEY, then restart the session.";
+    explicit === "openrouter"
+      ? "jev hooks are inactive: JEV_PROVIDER=openrouter but no OpenRouter API key is configured. Set it with `/plugin` (jev → openrouter_api_key) or by exporting OPENROUTER_API_KEY, then restart the session."
+      : "jev hooks are inactive: no TypeSafe API key is configured. Set it with `/plugin` (jev → api_key) or by exporting TYPESAFE_API_KEY, then restart the session. To use OpenRouter instead, set OPENROUTER_API_KEY.";
 
   return {
     systemMessage: `[jev] ${message}`,
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: `[jev] The jev plugin's judgment hooks are installed but inactive, because no TypeSafe API key is configured. Deterministic pattern checks still run. ${message}`,
+      additionalContext: `[jev] The jev plugin's judgment hooks are installed but inactive, because no ${label} API key is configured. Deterministic pattern checks still run. ${message}`,
     },
   };
 }

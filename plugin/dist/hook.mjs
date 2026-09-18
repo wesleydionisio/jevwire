@@ -169,8 +169,77 @@ var JevConnectionError = class extends JevError {
 var JevProtocolError = class extends JevError {
 };
 
+// src/jev/provider.ts
+var TYPESAFE_BASE_URL = "https://api.typesafe.ai";
+var OPENROUTER_BASE_URL = "https://openrouter.ai/api/alpha";
+var TYPESAFE_DEFAULT_MODEL = "jev-1.13.0";
+var OPENROUTER_LATEST_MODEL = "typesafe/jev-1.13";
+var OPENROUTER_DEFAULT_MODEL = OPENROUTER_LATEST_MODEL;
+var OPENROUTER_APP_TITLE = "jevwire";
+var OPENROUTER_APP_REFERER = "https://github.com/Brainwires/jevwire";
+var PROVIDER_LABELS = {
+  typesafe: "TypeSafe",
+  openrouter: "OpenRouter"
+};
+var PROVIDER_KEY_VARS = {
+  typesafe: "TYPESAFE_API_KEY",
+  openrouter: "OPENROUTER_API_KEY"
+};
+function clean(value) {
+  const trimmed = value?.trim();
+  return trimmed === void 0 || trimmed === "" || trimmed.includes("${") ? void 0 : trimmed;
+}
+function resolveProvider(inputs) {
+  const typesafeKey = clean(inputs.typesafeKey);
+  const openrouterKey = clean(inputs.openrouterKey);
+  const rawSetting = clean(inputs.setting)?.toLowerCase();
+  let setting = "auto";
+  let problem = null;
+  if (rawSetting === "typesafe" || rawSetting === "openrouter") {
+    setting = rawSetting;
+  } else if (rawSetting !== void 0 && rawSetting !== "auto") {
+    problem = `JEV_PROVIDER=${JSON.stringify(rawSetting)} is not one of auto|typesafe|openrouter; using auto.`;
+  }
+  const keys = { typesafe: typesafeKey, openrouter: openrouterKey };
+  if (setting !== "auto") {
+    const key = keys[setting];
+    if (key === void 0) {
+      return {
+        setting,
+        provider: null,
+        apiKey: null,
+        target: setting,
+        problem: `JEV_PROVIDER=${setting} but ${PROVIDER_KEY_VARS[setting]} is not set.`
+      };
+    }
+    return { setting, provider: setting, apiKey: key, target: setting, problem };
+  }
+  if (typesafeKey !== void 0) return { setting, provider: "typesafe", apiKey: typesafeKey, target: "typesafe", problem };
+  if (openrouterKey !== void 0) {
+    return { setting, provider: "openrouter", apiKey: openrouterKey, target: "openrouter", problem };
+  }
+  return { setting, provider: null, apiKey: null, target: "typesafe", problem };
+}
+function defaultBaseUrl(provider) {
+  return provider === "openrouter" ? OPENROUTER_BASE_URL : TYPESAFE_BASE_URL;
+}
+function defaultModel(provider) {
+  return provider === "openrouter" ? OPENROUTER_DEFAULT_MODEL : TYPESAFE_DEFAULT_MODEL;
+}
+function resolveModel(provider, requested) {
+  const name = clean(requested) ?? defaultModel(provider);
+  if (provider !== "openrouter") return name;
+  if (name.toLowerCase() === "jev-latest" || name.toLowerCase() === "typesafe/jev-latest") {
+    return OPENROUTER_LATEST_MODEL;
+  }
+  if (name.includes("/")) return name;
+  return `typesafe/${name.replace(/^(jev-\d+\.\d+)\.\d+$/i, "$1")}`;
+}
+function providerField(provider) {
+  return provider === void 0 ? {} : { provider };
+}
+
 // src/jev/client.ts
-var DEFAULT_BASE_URL = "https://api.typesafe.ai";
 var DEFAULT_MODEL = "jev-latest";
 var DEFAULT_TIMEOUT_MS = 3e4;
 var DEFAULT_MAX_RETRIES = 3;
@@ -199,7 +268,9 @@ function isAbortError(error) {
   return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
 }
 var JevDecisionModel = class {
+  /** The model name as sent on the wire (for OpenRouter, the `typesafe/...` slug). */
   name;
+  provider;
   apiKey;
   baseUrl;
   timeoutMs;
@@ -209,8 +280,9 @@ var JevDecisionModel = class {
   budgetLimits;
   constructor(options) {
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    this.name = options.model ?? DEFAULT_MODEL;
+    this.provider = options.provider ?? "typesafe";
+    this.baseUrl = (options.baseUrl ?? defaultBaseUrl(this.provider)).replace(/\/+$/, "");
+    this.name = resolveModel(this.provider, options.model ?? (this.provider === "typesafe" ? DEFAULT_MODEL : void 0));
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.fetchImpl = options.fetch ?? globalThis.fetch;
@@ -224,10 +296,10 @@ var JevDecisionModel = class {
     const questions = request2.questions;
     validateQuestions(questions);
     checkBudget(request2.state, questions, this.budgetLimits);
-    const model = request2.model ?? this.name;
+    const model = request2.model === void 0 ? this.name : resolveModel(this.provider, request2.model);
     const started = Date.now();
     const body = await this.send(
-      "/v1/systemone",
+      this.provider === "openrouter" ? "/decisions" : "/v1/systemone",
       { state: request2.state, model, questions },
       request2.signal
     );
@@ -235,6 +307,7 @@ var JevDecisionModel = class {
     const parsed = this.parseEvaluateResponse(body, questions);
     return {
       model: parsed.model,
+      provider: this.provider,
       answers: parsed.answers,
       usage: parsed.usage,
       latency_ms
@@ -252,8 +325,24 @@ var JevDecisionModel = class {
     const result = await this.evaluate({ state, questions: { q: { type: "noul", ...question } } });
     return result.answers.q.noul;
   }
-  /** `GET /v1/models` — the names this account may send in `model`. */
+  /**
+   * `GET /v1/models` — the names this account may send in `model`.
+   *
+   * OpenRouter's Decisions API has no catalog endpoint, so there the answer is
+   * the one model this package targets, stated as what it is.
+   */
   async listModels(signal2) {
+    if (this.provider === "openrouter") {
+      return {
+        models: [
+          {
+            name: OPENROUTER_LATEST_MODEL,
+            description: "Jev on OpenRouter's Decisions API. OpenRouter publishes no model listing for it; `jev-latest` maps to this slug.",
+            release_date: ""
+          }
+        ]
+      };
+    }
     const body = await this.send("/v1/models", void 0, signal2);
     if (typeof body !== "object" || body === null || !Array.isArray(body.models)) {
       throw new JevProtocolError("GET /v1/models did not return a `models` array.", { body });
@@ -316,7 +405,12 @@ var JevDecisionModel = class {
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           Accept: "application/json",
-          ...payload === void 0 ? {} : { "Content-Type": "application/json" }
+          ...payload === void 0 ? {} : { "Content-Type": "application/json" },
+          ...this.provider === "openrouter" ? {
+            "HTTP-Referer": OPENROUTER_APP_REFERER,
+            "X-Title": OPENROUTER_APP_TITLE,
+            "X-OpenRouter-Title": OPENROUTER_APP_TITLE
+          } : {}
         },
         signal: controller.signal
       };
@@ -376,26 +470,27 @@ var JevDecisionModel = class {
       body = void 0;
     }
     const options = { status: response.status, body };
+    const label = PROVIDER_LABELS[this.provider];
     switch (response.status) {
       case 401:
         return new JevAuthError(
-          "TypeSafe rejected the API key. Check TYPESAFE_API_KEY.",
+          `${label} rejected the API key. Check ${PROVIDER_KEY_VARS[this.provider]}.`,
           options
         );
       case 422:
         return new JevValidationError(
-          "TypeSafe rejected the request body as invalid; the response names the offending field.",
+          `${label} rejected the request body as invalid; the response names the offending field.`,
           options
         );
       case 429:
-        return new JevRateLimitError("TypeSafe rate limit exceeded.", options);
+        return new JevRateLimitError(`${label} rate limit exceeded.`, options);
       case 529:
-        return new JevOverloadedError("TypeSafe is temporarily overloaded.", options);
+        return new JevOverloadedError(`${label} is temporarily overloaded.`, options);
       default:
         if (response.status >= 500) {
-          return new JevOverloadedError(`TypeSafe returned a server error on ${path}.`, options);
+          return new JevOverloadedError(`${label} returned a server error on ${path}.`, options);
         }
-        return new JevError(`TypeSafe returned an unexpected status on ${path}.`, options);
+        return new JevError(`${label} returned an unexpected status on ${path}.`, options);
     }
   }
   /**
@@ -448,6 +543,17 @@ var JevDecisionModel = class {
     };
   }
 };
+function createJevModel(source2) {
+  if (source2.apiKey === null || source2.provider === null) return null;
+  return new JevDecisionModel({
+    apiKey: source2.apiKey,
+    provider: source2.provider,
+    baseUrl: source2.baseUrl,
+    model: source2.model,
+    timeoutMs: source2.timeoutMs,
+    maxRetries: source2.maxRetries
+  });
+}
 function isRetryableStatus(status) {
   if (status === 401 || status === 422) return false;
   return status === 429 || status === 529 || status >= 500;
@@ -570,7 +676,14 @@ function loadHookConfig(env = process.env) {
   if (read(env, "auto_mode", "JEV_AUTO_MODE") !== void 0) {
     warnings.push("auto_mode is no longer used: every judgment is advisory to Claude and never prompts.");
   }
-  const apiKey = read(env, "api_key", "TYPESAFE_API_KEY") ?? null;
+  const pluginProvider = read(env, "provider");
+  const providerRaw = pluginProvider !== void 0 && pluginProvider.toLowerCase() !== "auto" ? pluginProvider : read(env, "provider", "JEV_PROVIDER");
+  const resolved = resolveProvider({
+    setting: providerRaw,
+    typesafeKey: read(env, "api_key", "TYPESAFE_API_KEY"),
+    openrouterKey: read(env, "openrouter_api_key", "OPENROUTER_API_KEY")
+  });
+  if (resolved.problem !== null && resolved.provider !== null) warnings.push(resolved.problem);
   const auto = readNumber(env, "auto_threshold", HOOK_DEFAULTS.autoThreshold, 0, 1, warnings, "JEV_AUTO_THRESHOLD");
   const review = readNumber(
     env,
@@ -581,10 +694,14 @@ function loadHookConfig(env = process.env) {
     warnings,
     "JEV_REVIEW_THRESHOLD"
   );
+  const baseUrl = resolved.target === "openrouter" ? read(env, "openrouter_base_url", "OPENROUTER_BASE_URL") ?? defaultBaseUrl("openrouter") : read(env, "base_url", "TYPESAFE_BASE_URL") ?? HOOK_DEFAULTS.baseUrl;
   return {
-    apiKey,
-    baseUrl: (read(env, "base_url", "TYPESAFE_BASE_URL") ?? HOOK_DEFAULTS.baseUrl).replace(/\/+$/, ""),
-    model: read(env, "model", "JEV_MODEL") ?? HOOK_DEFAULTS.model,
+    apiKey: resolved.apiKey,
+    provider: resolved.provider,
+    providerSetting: resolved.setting,
+    providerProblem: resolved.problem,
+    baseUrl: baseUrl.replace(/\/+$/, ""),
+    model: resolveModel(resolved.target, read(env, "model", "JEV_MODEL") ?? HOOK_DEFAULTS.model),
     timeoutMs: readNumber(env, "timeout_ms", HOOK_DEFAULTS.timeoutMs, 100, 1e4, warnings, "JEV_HOOK_TIMEOUT_MS"),
     maxRetries: HOOK_DEFAULTS.maxRetries,
     gate,
@@ -640,8 +757,10 @@ function credentials(headers) {
     const token = (match?.[1] ?? "").trim();
     if (token !== "") found.push(token);
   }
-  const envKey = header(headers, "x-jev-env-key")?.trim();
-  if (envKey !== void 0 && envKey !== "") found.push(envKey);
+  for (const name of ["x-jev-env-key", "x-jev-option-key-openrouter", "x-jev-env-key-openrouter"]) {
+    const value = header(headers, name)?.trim();
+    if (value !== void 0 && value !== "") found.push(value);
+  }
   return found;
 }
 function sameSecret(a, b) {
@@ -651,7 +770,14 @@ function sameSecret(a, b) {
 }
 function expectedKeysFrom(env) {
   const keys = [];
-  for (const raw of [env.CLAUDE_PLUGIN_OPTION_API_KEY, env.JEV_PLUGIN_API_KEY, env.TYPESAFE_API_KEY]) {
+  for (const raw of [
+    env.CLAUDE_PLUGIN_OPTION_API_KEY,
+    env.JEV_PLUGIN_API_KEY,
+    env.TYPESAFE_API_KEY,
+    env.CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY,
+    env.JEV_PLUGIN_OPENROUTER_API_KEY,
+    env.OPENROUTER_API_KEY
+  ]) {
     const value = (raw ?? "").trim();
     if (value !== "" && !keys.includes(value)) keys.push(value);
   }
@@ -822,7 +948,7 @@ function openLog(dataDir) {
 }
 
 // src/hooks/version.ts
-var HOOK_VERSION = "0.5.1";
+var HOOK_VERSION = "0.6.0";
 
 // src/hooks/daemon/control.ts
 function isAlive(pid) {
@@ -2739,6 +2865,7 @@ var EMPTY_SESSION = { prompts: [], stop_blocks: 0 };
 function modelCost(result) {
   return {
     model: result.model,
+    ...result.provider === void 0 ? {} : { provider: result.provider },
     latency_ms: result.latency_ms,
     input_tokens: result.usage.input_tokens,
     ...result.memo === true ? { memo: true } : {}
@@ -3096,11 +3223,29 @@ var Store = class {
 
 // src/hooks/daemon/registry.ts
 function sessionConfigOf(config) {
-  const { apiKey: _apiKey, warnings: _warnings, dataDir: _dataDir, disabled: _disabled, ...rest } = config;
+  const {
+    apiKey: _apiKey,
+    provider: _provider,
+    providerSetting: _providerSetting,
+    providerProblem: _providerProblem,
+    warnings: _warnings,
+    dataDir: _dataDir,
+    disabled: _disabled,
+    ...rest
+  } = config;
   return rest;
 }
-function hookConfigFrom(snapshot, apiKey, dataDir) {
-  return { ...snapshot, apiKey, dataDir, disabled: false, warnings: [] };
+function hookConfigFrom(snapshot, apiKey, dataDir, daemon) {
+  return {
+    ...snapshot,
+    apiKey,
+    provider: daemon?.provider ?? (apiKey === null ? null : "typesafe"),
+    providerSetting: daemon?.providerSetting ?? "auto",
+    providerProblem: daemon?.providerProblem ?? null,
+    dataDir,
+    disabled: false,
+    warnings: []
+  };
 }
 function num(value, fallback, min, max) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) return fallback;
@@ -3531,6 +3676,7 @@ function combinedCost(results) {
   const first = results[0];
   return modelCost({
     model: first.model,
+    provider: first.provider,
     latency_ms: Math.max(...results.map((result) => result.latency_ms)),
     usage: { input_tokens: results.reduce((sum, result) => sum + result.usage.input_tokens, 0) },
     ...results.every((result) => result.memo === true) ? { memo: true } : {}
@@ -3994,6 +4140,7 @@ async function runGateAction(model, input, config, signal2) {
     scope,
     thresholds,
     model: result.model,
+    ...providerField(result.provider),
     usage: result.usage,
     latency_ms: result.latency_ms,
     ...result.memo === true ? { memo: true } : {}
@@ -4454,12 +4601,14 @@ async function handleSessionStart(input, deps) {
   const session = store.readSession(sessionId);
   if (session.key_warned === true) return void 0;
   store.writeSession(sessionId, { ...session, key_warned: true }, deps.now());
-  const message = "jev hooks are inactive: no TypeSafe API key is configured. Set it with `/plugin` (jev \u2192 api_key) or by exporting TYPESAFE_API_KEY, then restart the session.";
+  const explicit = config.providerSetting !== "auto" ? config.providerSetting : void 0;
+  const label = explicit === "openrouter" ? "OpenRouter" : "TypeSafe";
+  const message = explicit === "openrouter" ? "jev hooks are inactive: JEV_PROVIDER=openrouter but no OpenRouter API key is configured. Set it with `/plugin` (jev \u2192 openrouter_api_key) or by exporting OPENROUTER_API_KEY, then restart the session." : "jev hooks are inactive: no TypeSafe API key is configured. Set it with `/plugin` (jev \u2192 api_key) or by exporting TYPESAFE_API_KEY, then restart the session. To use OpenRouter instead, set OPENROUTER_API_KEY.";
   return {
     systemMessage: `[jev] ${message}`,
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: `[jev] The jev plugin's judgment hooks are installed but inactive, because no TypeSafe API key is configured. Deterministic pattern checks still run. ${message}`
+      additionalContext: `[jev] The jev plugin's judgment hooks are installed but inactive, because no ${label} API key is configured. Deterministic pattern checks still run. ${message}`
     }
   };
 }
@@ -5178,14 +5327,8 @@ function parsePort(argv) {
   return void 0;
 }
 function buildDaemonModel(config) {
-  if (config.apiKey === null) return { model: null, memo: void 0 };
-  const client = new JevDecisionModel({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    timeoutMs: config.timeoutMs,
-    maxRetries: config.maxRetries
-  });
+  const client = createJevModel(config);
+  if (client === null) return { model: null, memo: void 0 };
   const memo = new MemoizedModel(new LimitedModel(client));
   return { model: memo, memo };
 }
@@ -5204,7 +5347,7 @@ function makeDepsFor(config, model, registry) {
     if (entry !== void 0) {
       return {
         model,
-        config: hookConfigFrom(entry.config, config.apiKey, entry.dataDir),
+        config: hookConfigFrom(entry.config, config.apiKey, entry.dataDir, config),
         store: storeFor(entry.dataDir),
         now: () => Date.now()
       };
@@ -5215,7 +5358,7 @@ function makeDepsFor(config, model, registry) {
       registry.start(sessionId, config.dataDir, persisted);
       return {
         model,
-        config: hookConfigFrom(persisted, config.apiKey, config.dataDir),
+        config: hookConfigFrom(persisted, config.apiKey, config.dataDir, config),
         store,
         now: () => Date.now()
       };
@@ -5448,6 +5591,10 @@ function daemonReport(config, view, now = Date.now()) {
   if (state !== void 0 || health !== void 0) lines.push(`  log: ${view.logPath}`);
   return lines;
 }
+function providerLine(config) {
+  if (config.provider !== null) return PROVIDER_LABELS[config.provider];
+  return `none (${config.providerProblem ?? "set TYPESAFE_API_KEY or OPENROUTER_API_KEY"})`;
+}
 function statusReport(config, store, now = Date.now(), daemon) {
   const all = store.readLog();
   const recent = within(all, now, DAY_MS);
@@ -5460,8 +5607,9 @@ function statusReport(config, store, now = Date.now(), daemon) {
     "jev \u2014 Claude Code plugin status",
     "",
     "Configuration",
-    `  API key: ${config.apiKey === null ? "not configured (judgment hooks inactive)" : "configured"}`,
+    `  provider: ${providerLine(config)}`,
     `  model: ${config.model}`,
+    `  API key: ${config.apiKey === null ? "not configured (judgment hooks inactive)" : "configured"}`,
     `  base url: ${config.baseUrl}`,
     `  gate: ${config.gate}`,
     `  ask_on_trip: ${config.askOnTrip}${config.askOnTrip ? "" : " (a tripwire denies to Claude; the user is not prompted)"}`,
@@ -5861,13 +6009,7 @@ function evidenceSection(tripById, notReissued, reissues, affirms) {
 var SESSION_START_DAEMON_MS = 3500;
 var SESSION_POST_MS = 700;
 function buildDeps(config, model) {
-  const resolved = model !== void 0 ? model : config.apiKey === null ? null : new JevDecisionModel({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    timeoutMs: config.timeoutMs,
-    maxRetries: config.maxRetries
-  });
+  const resolved = model !== void 0 ? model : createJevModel(config);
   return { model: resolved, config, store: new Store(config.dataDir), now: () => Date.now() };
 }
 async function readStdin() {

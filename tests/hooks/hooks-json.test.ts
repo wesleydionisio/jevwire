@@ -110,9 +110,14 @@ describe("the http entries", () => {
     }
   });
 
-  it("allow exactly the two credential variables and nothing else", () => {
+  it("allow exactly the four credential variables (two per provider) and nothing else", () => {
     for (const { event, hook } of httpEntries) {
-      expect(hook.allowedEnvVars, event).toEqual(["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]);
+      expect(hook.allowedEnvVars, event).toEqual([
+        "CLAUDE_PLUGIN_OPTION_API_KEY",
+        "TYPESAFE_API_KEY",
+        "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+        "OPENROUTER_API_KEY",
+      ]);
     }
   });
 

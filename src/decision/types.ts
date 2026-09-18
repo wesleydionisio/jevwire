@@ -101,6 +101,8 @@ export interface EvaluateRequest<Q extends Record<string, Question> = Record<str
 export interface EvaluateResult<Q extends Record<string, Question> = Record<string, Question>> {
   /** Versioned model id that actually answered. */
   model: string;
+  /** Which service answered (`typesafe`, `openrouter`), when the implementation knows. */
+  provider?: string;
   answers: { [K in keyof Q]: AnswerFor<Q[K]> };
   usage: Usage;
   /** Wall-clock time including retries. */

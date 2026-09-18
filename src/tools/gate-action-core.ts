@@ -24,6 +24,7 @@ import type {
   Question,
   ScoreAnswer,
 } from "../decision/types.js";
+import { providerField } from "../jev/provider.js";
 import type { ToolConfig } from "./shared.js";
 
 export const name = "jev_gate_action";
@@ -816,6 +817,7 @@ export async function runGateAction(
     scope,
     thresholds,
     model: result.model,
+    ...providerField(result.provider),
     usage: result.usage,
     latency_ms: result.latency_ms,
     ...(result.memo === true ? { memo: true } : {}),

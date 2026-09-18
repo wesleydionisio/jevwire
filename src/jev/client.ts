@@ -1,5 +1,6 @@
 /**
- * HTTP client for TypeSafe's System One endpoint, as a `DecisionModel`.
+ * HTTP client for Jev as a `DecisionModel`: TypeSafe's System One endpoint, or
+ * OpenRouter's Decisions API (same body, same answers; see `provider.ts`).
  *
  * There is no TypeSafe SDK dependency here: the wire shapes in
  * `src/decision/types.ts` mirror `POST /v1/systemone` closely enough that this
@@ -39,11 +40,24 @@ import {
   JevTimeoutError,
   JevValidationError,
 } from "./errors.js";
+import {
+  defaultBaseUrl,
+  OPENROUTER_APP_REFERER,
+  OPENROUTER_APP_TITLE,
+  OPENROUTER_LATEST_MODEL,
+  PROVIDER_KEY_VARS,
+  PROVIDER_LABELS,
+  resolveModel,
+  type ProviderName,
+} from "./provider.js";
 
 export type { ListModelsResult, ModelInfo } from "../decision/models.js";
 
 export interface JevDecisionModelOptions {
   apiKey: string;
+  /** Which service to call. Defaults to `typesafe`, so existing callers are unchanged. */
+  provider?: ProviderName;
+  /** Origin (TypeSafe) or API root (OpenRouter). Defaults to the provider's own. */
   baseUrl?: string;
   /** Default model for requests that do not override it. */
   model?: string;
@@ -59,7 +73,6 @@ export interface JevDecisionModelOptions {
   budgetLimits?: BudgetLimits;
 }
 
-const DEFAULT_BASE_URL = "https://api.typesafe.ai";
 const DEFAULT_MODEL = "jev-latest";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -106,7 +119,9 @@ function isAbortError(error: unknown): boolean {
 }
 
 export class JevDecisionModel implements DecisionModel, ModelCatalog {
+  /** The model name as sent on the wire (for OpenRouter, the `typesafe/...` slug). */
   readonly name: string;
+  readonly provider: ProviderName;
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -118,8 +133,9 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
 
   constructor(options: JevDecisionModelOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    this.name = options.model ?? DEFAULT_MODEL;
+    this.provider = options.provider ?? "typesafe";
+    this.baseUrl = (options.baseUrl ?? defaultBaseUrl(this.provider)).replace(/\/+$/, "");
+    this.name = resolveModel(this.provider, options.model ?? (this.provider === "typesafe" ? DEFAULT_MODEL : undefined));
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.fetchImpl = options.fetch ?? globalThis.fetch;
@@ -136,11 +152,11 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
     validateQuestions(questions);
     checkBudget(request.state, questions, this.budgetLimits);
 
-    const model = request.model ?? this.name;
+    const model = request.model === undefined ? this.name : resolveModel(this.provider, request.model);
     const started = Date.now();
 
     const body = await this.send(
-      "/v1/systemone",
+      this.provider === "openrouter" ? "/decisions" : "/v1/systemone",
       { state: request.state, model, questions },
       request.signal,
     );
@@ -150,6 +166,7 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
 
     return {
       model: parsed.model,
+      provider: this.provider,
       answers: parsed.answers as EvaluateResult<Q>["answers"],
       usage: parsed.usage,
       latency_ms,
@@ -171,8 +188,26 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
     return result.answers.q.noul;
   }
 
-  /** `GET /v1/models` — the names this account may send in `model`. */
+  /**
+   * `GET /v1/models` — the names this account may send in `model`.
+   *
+   * OpenRouter's Decisions API has no catalog endpoint, so there the answer is
+   * the one model this package targets, stated as what it is.
+   */
   async listModels(signal?: AbortSignal): Promise<ListModelsResult> {
+    if (this.provider === "openrouter") {
+      return {
+        models: [
+          {
+            name: OPENROUTER_LATEST_MODEL,
+            description:
+              "Jev on OpenRouter's Decisions API. OpenRouter publishes no model listing for it; " +
+              "`jev-latest` maps to this slug.",
+            release_date: "",
+          },
+        ],
+      };
+    }
     const body = await this.send("/v1/models", undefined, signal);
     if (typeof body !== "object" || body === null || !Array.isArray((body as { models?: unknown }).models)) {
       throw new JevProtocolError("GET /v1/models did not return a `models` array.", { body });
@@ -259,6 +294,13 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
           Authorization: `Bearer ${this.apiKey}`,
           Accept: "application/json",
           ...(payload === undefined ? {} : { "Content-Type": "application/json" }),
+          ...(this.provider === "openrouter"
+            ? {
+                "HTTP-Referer": OPENROUTER_APP_REFERER,
+                "X-Title": OPENROUTER_APP_TITLE,
+                "X-OpenRouter-Title": OPENROUTER_APP_TITLE,
+              }
+            : {}),
         },
         signal: controller.signal,
       };
@@ -329,27 +371,28 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
     }
 
     const options = { status: response.status, body };
+    const label = PROVIDER_LABELS[this.provider];
 
     switch (response.status) {
       case 401:
         return new JevAuthError(
-          "TypeSafe rejected the API key. Check TYPESAFE_API_KEY.",
+          `${label} rejected the API key. Check ${PROVIDER_KEY_VARS[this.provider]}.`,
           options,
         );
       case 422:
         return new JevValidationError(
-          "TypeSafe rejected the request body as invalid; the response names the offending field.",
+          `${label} rejected the request body as invalid; the response names the offending field.`,
           options,
         );
       case 429:
-        return new JevRateLimitError("TypeSafe rate limit exceeded.", options);
+        return new JevRateLimitError(`${label} rate limit exceeded.`, options);
       case 529:
-        return new JevOverloadedError("TypeSafe is temporarily overloaded.", options);
+        return new JevOverloadedError(`${label} is temporarily overloaded.`, options);
       default:
         if (response.status >= 500) {
-          return new JevOverloadedError(`TypeSafe returned a server error on ${path}.`, options);
+          return new JevOverloadedError(`${label} returned a server error on ${path}.`, options);
         }
-        return new JevError(`TypeSafe returned an unexpected status on ${path}.`, options);
+        return new JevError(`${label} returned an unexpected status on ${path}.`, options);
     }
   }
 
@@ -412,6 +455,33 @@ export class JevDecisionModel implements DecisionModel, ModelCatalog {
       },
     };
   }
+}
+
+/** The slice of `Config` / `HookConfig` that decides which client to build. */
+export interface ModelSource {
+  apiKey: string | null;
+  provider: ProviderName | null;
+  baseUrl: string;
+  model: string;
+  timeoutMs: number;
+  maxRetries: number;
+}
+
+/**
+ * The one place a resolved configuration becomes a client, so the MCP server,
+ * the hook CLI, the daemon and the smoke test cannot drift apart. `null` means
+ * "no usable provider" — the caller stays inactive rather than guessing one.
+ */
+export function createJevModel(source: ModelSource): JevDecisionModel | null {
+  if (source.apiKey === null || source.provider === null) return null;
+  return new JevDecisionModel({
+    apiKey: source.apiKey,
+    provider: source.provider,
+    baseUrl: source.baseUrl,
+    model: source.model,
+    timeoutMs: source.timeoutMs,
+    maxRetries: source.maxRetries,
+  });
 }
 
 function isRetryableStatus(status: number): boolean {

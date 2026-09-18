@@ -34,6 +34,7 @@ import {
   rootOf,
   type FileAccessOptions,
 } from "../files/index.js";
+import { providerField } from "../jev/provider.js";
 import { envelopeShape, gateSchema, mapWithConcurrency, sumUsage, thresholdsSchema, type ToolConfig } from "./shared.js";
 
 export const name = "jev_verify";
@@ -468,6 +469,7 @@ export async function run(
     thresholds,
     evidence_chunks: pieces.length,
     model: results[0]?.result.model ?? model.name,
+    ...providerField(results[0]?.result.provider),
     usage: sumUsage(results.map(({ result }) => result.usage)),
     latency_ms: Date.now() - started,
   };

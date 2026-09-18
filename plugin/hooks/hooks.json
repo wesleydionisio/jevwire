@@ -24,9 +24,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           },
           {
             "type": "command",
@@ -48,9 +50,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       }
@@ -67,9 +71,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       },
@@ -83,9 +89,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       }
@@ -101,9 +109,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       }
@@ -119,9 +129,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       }
@@ -136,9 +148,11 @@
             "headers": {
               "Authorization": "Bearer $CLAUDE_PLUGIN_OPTION_API_KEY",
               "X-Jev-Env-Key": "$TYPESAFE_API_KEY",
+              "X-Jev-Option-Key-OpenRouter": "$CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY",
+              "X-Jev-Env-Key-OpenRouter": "$OPENROUTER_API_KEY",
               "X-Jev-Protocol": "1"
             },
-            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY"]
+            "allowedEnvVars": ["CLAUDE_PLUGIN_OPTION_API_KEY", "TYPESAFE_API_KEY", "CLAUDE_PLUGIN_OPTION_OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
           }
         ]
       }

@@ -26,16 +26,47 @@ import { GATE_LEVELS, type GateLevel, type HookConfig } from "../config.js";
  * A session's configuration as the daemon needs it: everything except the
  * secret, the path, the warnings and the kill switch.
  */
-export type SessionConfig = Omit<HookConfig, "apiKey" | "warnings" | "dataDir" | "disabled">;
+export type SessionConfig = Omit<
+  HookConfig,
+  "apiKey" | "provider" | "providerSetting" | "providerProblem" | "warnings" | "dataDir" | "disabled"
+>;
 
 export function sessionConfigOf(config: HookConfig): SessionConfig {
-  const { apiKey: _apiKey, warnings: _warnings, dataDir: _dataDir, disabled: _disabled, ...rest } = config;
+  const {
+    apiKey: _apiKey,
+    provider: _provider,
+    providerSetting: _providerSetting,
+    providerProblem: _providerProblem,
+    warnings: _warnings,
+    dataDir: _dataDir,
+    disabled: _disabled,
+    ...rest
+  } = config;
   return rest;
 }
 
-/** Rebuild a full `HookConfig` from a snapshot plus this daemon's secrets. */
-export function hookConfigFrom(snapshot: SessionConfig, apiKey: string | null, dataDir: string): HookConfig {
-  return { ...snapshot, apiKey, dataDir, disabled: false, warnings: [] };
+/**
+ * Rebuild a full `HookConfig` from a snapshot plus this daemon's own secrets
+ * and provider. The provider belongs to the daemon, not the session: one
+ * process holds one model client, so a session cannot ask for a different one.
+ * Without `daemon` the key is assumed to be TypeSafe's, as before 0.6.0.
+ */
+export function hookConfigFrom(
+  snapshot: SessionConfig,
+  apiKey: string | null,
+  dataDir: string,
+  daemon?: Pick<HookConfig, "provider" | "providerSetting" | "providerProblem">,
+): HookConfig {
+  return {
+    ...snapshot,
+    apiKey,
+    provider: daemon?.provider ?? (apiKey === null ? null : "typesafe"),
+    providerSetting: daemon?.providerSetting ?? "auto",
+    providerProblem: daemon?.providerProblem ?? null,
+    dataDir,
+    disabled: false,
+    warnings: [],
+  };
 }
 
 function num(value: unknown, fallback: number, min: number, max: number): number {

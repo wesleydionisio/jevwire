@@ -6,6 +6,9 @@ describe("loadConfig", () => {
     const config = loadConfig({ TYPESAFE_API_KEY: "sk-abc" });
     expect(config).toEqual({
       apiKey: "sk-abc",
+      provider: "typesafe",
+      providerSetting: "auto",
+      providerProblem: null,
       baseUrl: DEFAULTS.baseUrl,
       model: DEFAULTS.model,
       timeoutMs: DEFAULTS.timeoutMs,
@@ -62,6 +65,9 @@ describe("loadConfig", () => {
 
     expect(config).toEqual({
       apiKey: "sk-abc",
+      provider: "typesafe",
+      providerSetting: "auto",
+      providerProblem: null,
       baseUrl: "http://localhost:9000",
       model: "jev-1.13.0",
       timeoutMs: 5000,

@@ -254,6 +254,8 @@ export interface DecisionRecord {
   chunks_judged?: number;
   chunks_failed?: number;
   model?: string;
+  /** Which provider answered. Absent on records written before 0.6.0. */
+  provider?: string;
   latency_ms?: number;
   input_tokens?: number;
   /**
@@ -274,12 +276,14 @@ export interface DecisionRecord {
  */
 export function modelCost(result: {
   model: string;
+  provider?: string | undefined;
   latency_ms: number;
   usage: { input_tokens: number };
   memo?: boolean;
-}): Pick<DecisionRecord, "model" | "latency_ms" | "input_tokens" | "memo"> {
+}): Pick<DecisionRecord, "model" | "provider" | "latency_ms" | "input_tokens" | "memo"> {
   return {
     model: result.model,
+    ...(result.provider === undefined ? {} : { provider: result.provider }),
     latency_ms: result.latency_ms,
     input_tokens: result.usage.input_tokens,
     ...(result.memo === true ? { memo: true } : {}),
