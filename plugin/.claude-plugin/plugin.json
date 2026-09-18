@@ -24,7 +24,8 @@
     "provider": {
       "type": "string",
       "title": "Provider",
-      "description": "Who answers Jev judgments: auto (default: TypeSafe if a TypeSafe key is set, else OpenRouter if an OpenRouter key is set), typesafe, or openrouter. Leave empty to follow the JEV_PROVIDER environment variable. An explicit choice never falls back to the other provider.",
+      "description": "Who answers Jev judgments: auto (default: TypeSafe if a TypeSafe key is set, else OpenRouter if an OpenRouter key is set), typesafe, or openrouter. While it is auto, the JEV_PROVIDER environment variable decides. An explicit choice never falls back to the other provider.",
+      "default": "auto",
       "options": ["auto", "typesafe", "openrouter"],
       "required": false
     },

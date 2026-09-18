@@ -357,7 +357,7 @@ environment fallback for hand-wired use.
 
 | Setting | Type | Default | Meaning | Env fallback |
 |---|---|---|---|---|
-| `provider` | `auto` \| `typesafe` \| `openrouter` | *(empty = `auto`)* | Who answers judgments. `auto` picks TypeSafe if a TypeSafe key exists, else OpenRouter. An explicit choice never falls back to the other. Left empty, `JEV_PROVIDER` decides | `JEV_PROVIDER` |
+| `provider` | `auto` \| `typesafe` \| `openrouter` | `auto` | Who answers judgments. `auto` picks TypeSafe if a TypeSafe key exists, else OpenRouter. An explicit choice never falls back to the other. While it is `auto`, `JEV_PROVIDER` decides | `JEV_PROVIDER` |
 | `api_key` | string (sensitive) | — | TypeSafe API key. Without a key for the selected provider the judgment hooks stay inactive | `TYPESAFE_API_KEY` |
 | `openrouter_api_key` | string (sensitive) | — | OpenRouter API key (`sk-or-...`), used when the provider is `openrouter`, or under `auto` when no TypeSafe key is set | `OPENROUTER_API_KEY` |
 | `gate` | `off` \| `advisory` \| `strict` | `advisory` | `advisory` judges writes outside the project, sensitive paths, unrecognized shell commands and MCP tools with unknown effects, notes what it finds, and trips the two block-grade cases; `strict` also judges ordinary in-project edits and notes the cases advisory mode keeps to itself. Replaces `gate_mode` (see below) | `JEV_GATE` |

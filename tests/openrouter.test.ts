@@ -449,9 +449,9 @@ describe("manifests", () => {
     mcpServers: { jev: { env: Record<string, string> } };
   };
 
-  it("offers provider and OpenRouter key options, sensitive and with no default that could shadow JEV_PROVIDER", () => {
+  it("offers provider and OpenRouter key options; Claude Code requires the default to be one of the options, so it is auto, which defers to JEV_PROVIDER", () => {
     expect(plugin.userConfig.provider?.options).toEqual(["auto", "typesafe", "openrouter"]);
-    expect(plugin.userConfig.provider?.default).toBeUndefined();
+    expect(plugin.userConfig.provider?.default).toBe("auto");
     expect(plugin.userConfig.openrouter_api_key?.sensitive).toBe(true);
     expect(plugin.userConfig.api_key?.sensitive).toBe(true);
   });

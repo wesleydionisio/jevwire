@@ -28,8 +28,9 @@ has only `TYPESAFE_API_KEY` set sees no change.
   `resolveModel`, exported from the library). On OpenRouter `jev-latest` → `typesafe/jev-1.13`, a
   bare `jev-X.Y[.Z]` → `typesafe/jev-X.Y`, and a `vendor/name` slug is used as given.
 - **Plugin options** `provider` (auto / typesafe / openrouter) and `openrouter_api_key`
-  (sensitive). Existing `api_key` and `model` options are unchanged; `provider` has no default so
-  it cannot shadow an exported `JEV_PROVIDER`.
+  (sensitive). Existing `api_key` and `model` options are unchanged; `provider` defaults to `auto`
+  (Claude Code requires an option's default to be one of its choices), and `auto` in the option
+  defers to an exported `JEV_PROVIDER` instead of overriding it.
 - **Reporting.** `/jev:status` prints `provider:` (and says why there is none), tool results carry
   an optional `provider`, and decision-log records gain `provider` on judged calls. The API key is
   still never printed or logged.
