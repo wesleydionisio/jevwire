@@ -89,6 +89,18 @@ There is **no silent fallback**. `JEV_PROVIDER=openrouter` with no OpenRouter ke
 which variable is missing. The plugin's **Provider** option, when set to something other than `auto`,
 wins over `JEV_PROVIDER`.
 
+**Claude Code desktop.** The desktop app does not show a plugin's option fields and does not inherit
+`export`s from a terminal. Put the provider and key in Claude Code's own settings instead, from a
+shell that has the key exported:
+
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+node scripts/configure-openrouter.mjs      # writes JEV_PROVIDER and the key to ~/.claude/settings.json `env`
+```
+
+Restart Claude Code, then `/jev:daemon restart`. The key is read from the environment, never from
+argv, and is not printed. `--provider typesafe` does the same for `TYPESAFE_API_KEY`.
+
 **Model names.** `JEV_MODEL` is resolved in one place (`resolveModel` in `src/jev/provider.ts`). On
 TypeSafe it is sent as written. On OpenRouter `jev-latest` maps to the current release
 (`typesafe/jev-1.13`), a bare `jev-1.12` becomes `typesafe/jev-1.12`, the plugin's default
